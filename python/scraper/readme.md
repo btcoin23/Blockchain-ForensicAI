@@ -1,55 +1,78 @@
-# Crypto Traders Data Scraper
+# Crypto Trader Data Scraper
 
-A Python script that scrapes top crypto trader data from dexcheck.ai using Selenium and BeautifulSoup4.
+A Python application that scrapes top crypto trader data from dexcheck.ai and stores it in a MySQL database using Prisma ORM.
 
 ## Features
 
-- Automated web scraping of crypto trader data
-- Headless browser support
-- Data export to CSV format
-- Robust error handling
-- Configurable wait times for dynamic content
+- Automated web scraping using Selenium
+- Data parsing with BeautifulSoup4
+- Database storage with Prisma ORM and MySQL
+- Asynchronous data handling
 
-## Requirements
+## Prerequisites
 
+- Python 3.8+
+- MySQL Server
+- Chrome Browser
+
+## Installation
+
+1. Clone the repository:
 ```bash
-pip install -r requirements.txt
+git clone <repository-url>
 ```
 
-## Dependencies
-- selenium
-- beautifulsoup4
-- pandas
-- webdriver-manager
-- Chrome browser
+2. Install Python dependencies:
+```bash
+pip install selenium webdriver-manager beautifulsoup4 prisma
+```
+
+3. Set up the database:
+
+- Create a MySQL database named trader_db
+- Copy .env.example to .env and update database credentials:
+```bash
+DATABASE_URL="mysql://user:password@localhost:3306/trader_db"
+```
+
+4. Initialize Prisma:
+```bash
+prisma generate
+prisma db push
+```
 
 ## Usage
 
-- Simply run the script:
-
+Run the scraper:
 ```bash
 python main.py
 ```
 
-The script will:
+## Project Structure
+```bash
+├── main.py              # Main scraper script
+├── prisma/
+│   └── schema.prisma    # Database schema
+├── .env                 # Environment variables
+└── README.md           # Documentation
+```
+## Database Schema
 
-- Launch a Chrome browser instance
-- Navigate to dexcheck.ai
-- Wait for the trader data table to load
-- Extract trader information
-- Save the data to 'crypto_traders.csv'
+model Trader {
+  id        Int      @id @default(autoincrement())
+  address   String   @unique
+  pnl       String?
+  trades    Int?
+  winRate   String?
+  avgRoi    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
 
-## Output
+## Data Fields
 
-The script generates a CSV file named 'crypto_traders.csv' containing the following information:
-
-- Table headers from the website
-- Trader data rows
-
-## Configuration
-
-You can modify the following options in the script:
-
-- Enable headless mode by uncommenting the headless option
-- Adjust wait times for page loading
-- Customize Chrome driver options
+- address: Trader's wallet address
+- pnl: Profit and Loss
+- trades: Number of trades
+- winRate: Win rate percentage
+- avgRoi: Average Return on Investment

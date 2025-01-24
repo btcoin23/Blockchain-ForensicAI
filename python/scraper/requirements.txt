@@ -1,4 +1,6 @@
 bs4
 pandas
+prisma
 selenium
+selenium_stealth
 webdriver_manager
