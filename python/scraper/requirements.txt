@@ -1,0 +1,4 @@
+bs4
+pandas
+selenium
+webdriver_manager
