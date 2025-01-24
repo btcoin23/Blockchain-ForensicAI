@@ -5,62 +5,66 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
 from bs4 import BeautifulSoup
-import pandas as pd
+from prisma import Prisma
 
-# Set up Selenium WebDriver
-options = webdriver.ChromeOptions()
-# options.add_argument('--headless')  # Run in headless mode (no GUI)
-options.add_argument('--no-sandbox')
-options.add_argument('--disable-dev-shm-usage')
-options.add_argument('--disable-gpu')  # Disable GPU hardware acceleration
-options.add_argument('--log-level=3')  # Suppress logging
+async def store_traders_data():
+    # Initialize Prisma client
+    prisma = Prisma()
+    await prisma.connect()
 
-# Initialize the WebDriver
-driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+    # Set up Selenium WebDriver
+    options = webdriver.ChromeOptions()
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-dev-shm-usage')
+    options.add_argument('--disable-gpu')
+    options.add_argument('--log-level=3')
 
-# Target URL
-url = 'https://dexcheck.ai/app/eth/top-crypto-traders'
+    # Initialize the WebDriver
+    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
 
-try:
-    # Access the page
-    driver.get(url)
+    try:
+        # Access the page
+        driver.get('https://dexcheck.ai/app/eth/top-crypto-traders')
 
-    # Wait for the table to load
-    WebDriverWait(driver, 30).until(EC.presence_of_element_located((By.TAG_NAME, 'td')))
+        # Wait for the table to load
+        WebDriverWait(driver, 30).until(EC.presence_of_element_located((By.TAG_NAME, 'td')))
+        
+        # Get the page source after the table has loaded
+        page_source = driver.page_source
+        soup = BeautifulSoup(page_source, 'html.parser')
+        
+        # Locate the table
+        table = soup.find('table')
+        if not table:
+            print("Table not found on the page.")
+            return
 
-    # Get the page source after the table has loaded
-    page_source = driver.page_source
+        # Extract table rows
+        rows = table.find_all('tr')
+        for row in rows[1:]:  # Skip header row
+            columns = row.find_all('td')
+            if len(columns) >= 5:  # Ensure we have all required columns
+                # Create trader record in database
+                await prisma.trader.create({
+                    'data': {
+                        'address': columns[0].text.strip(),
+                        'pnl': columns[1].text.strip(),
+                        'trades': int(columns[2].text.strip()),
+                        'winRate': columns[3].text.strip(),
+                        'avgRoi': columns[4].text.strip(),
+                    }
+                })
+        
+        print("Data successfully stored in database")
 
-    # Use BeautifulSoup to parse the HTML
-    soup = BeautifulSoup(page_source, 'html.parser')
+    except Exception as e:
+        print(f"An error occurred: {e}")
 
-    # Locate the table (modify the selector based on actual HTML structure)
-    table = soup.find('table')  # Adjust if needed
-    if not table:
-        print("Table not found on the page.")
-        exit()
+    finally:
+        driver.quit()
+        await prisma.disconnect()
 
-    # Extract table headers
-    headers = [header.text.strip() for header in table.find_all('th')]
-    print(f'Headers: {headers}')
-
-    # Extract table rows
-    data = []
-    rows = table.find_all('tr')
-    for row in rows[1:]:  # Skip the header row
-        columns = row.find_all('td')
-        row_data = [column.text.strip() for column in columns]
-        data.append(row_data)
-        print(f'Row data: {row_data}')
-
-    # Create a DataFrame and save to CSV
-    df = pd.DataFrame(data, columns=headers)
-    df.to_csv('crypto_traders.csv', index=False, encoding='utf-8')
-    print("Data saved to 'crypto_traders.csv'.")
-
-except Exception as e:
-    print(f"An error occurred: {e}")
-
-finally:
-    # Close the WebDriver
-    driver.quit()
+# Run the async function
+if __name__ == "__main__":
+    import asyncio
+    asyncio.run(store_traders_data())

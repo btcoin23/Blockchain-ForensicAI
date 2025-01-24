@@ -1,0 +1,19 @@
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-py"
+}
+
+model Trader {
+  id        Int      @id @default(autoincrement())
+  address   String   @unique
+  pnl       String?
+  trades    Int?
+  winRate   String?
+  avgRoi    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
