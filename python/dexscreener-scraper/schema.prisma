@@ -1,0 +1,29 @@
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-py"
+}
+
+model Token {
+  id         Int      @id @default(autoincrement())
+  address    String   @unique
+  token      String
+  price      String?
+  age        String?
+  txns       String?
+  volume     String?
+  makers     String?
+  trend5m    String?  @map("trend_5m")
+  trend1h    String?  @map("trend_1h")
+  trend6h    String?  @map("trend_6h")
+  trend24h   String?  @map("trend_24h")
+  liquidity  String?
+  mcap       String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("tokens")
+}
