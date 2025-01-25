@@ -1,3 +1,4 @@
+from prisma import Prisma
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
@@ -43,7 +44,56 @@ def setup_driver():
     
     return driver
 
-def scrape_data():
+async def store_to_database(rows_data, header_texts):
+    db = Prisma()
+    await db.connect()
+
+    for row in rows_data:
+        token_data = dict(zip(header_texts, row))
+        
+        try:
+            await db.token.upsert(
+                where={
+                    'address': token_data['Address']
+                },
+                data={
+                    'create': {
+                        'address': token_data['Address'],
+                        'token': token_data['Token'],
+                        'price': token_data.get('Price', ''),
+                        'age': token_data.get('Age', ''),
+                        'txns': token_data.get('Txns', ''),
+                        'volume': token_data.get('Volume', ''),
+                        'makers': token_data.get('Makers', ''),
+                        'trend5m': token_data.get('5M', ''),
+                        'trend1h': token_data.get('1H', ''),
+                        'trend6h': token_data.get('6H', ''),
+                        'trend24h': token_data.get('24H', ''),
+                        'liquidity': token_data.get('Liquidity', ''),
+                        'mcap': token_data.get('MCAP', '')
+                    },
+                    'update': {
+                        'token': token_data['Token'],
+                        'price': token_data.get('Price', ''),
+                        'age': token_data.get('Age', ''),
+                        'txns': token_data.get('Txns', ''),
+                        'volume': token_data.get('Volume', ''),
+                        'makers': token_data.get('Makers', ''),
+                        'trend5m': token_data.get('5M', ''),
+                        'trend1h': token_data.get('1H', ''),
+                        'trend6h': token_data.get('6H', ''),
+                        'trend24h': token_data.get('24H', ''),
+                        'liquidity': token_data.get('Liquidity', ''),
+                        'mcap': token_data.get('MCAP', '')
+                    }
+                }
+            )
+        except Exception as e:
+            print(f"Error storing token {token_data['Address']}: {str(e)}")
+
+    await db.disconnect()
+
+async def scrape_data():
     driver = setup_driver()
     url = 'https://dexscreener.com/?rankBy=trendingScoreM5&order=desc'
 
@@ -79,11 +129,47 @@ def scrape_data():
         
         table_container = soup.select_one('.ds-dex-table-top')
 
-        with open('table.html', 'w', encoding='utf-8') as f:
-            f.write(str(table_container))
+        # with open('table.html', 'w', encoding='utf-8') as f:
+        #     f.write(str(table_container))
         
         if table_container:
-            pass
+            headers = table_container.select('.ds-table-th-button')
+            # with open('headers.html', 'w', encoding='utf-8') as f:
+            #     f.write(str(headers))
+
+            header_texts = ['Address'] + [header.text.strip() for header in headers if header.text.strip()]
+            
+            rows = table_container.select('.ds-dex-table-row')
+            with open('rows.html', 'w', encoding='utf-8') as f:
+                f.write(str(rows))
+
+            rows_data = []
+            
+            for row in rows:
+                cells = row.select('.ds-table-data-cell')
+                if cells:
+                    # Get token symbol from first column
+                    symbol_element = cells[0].select_one('.ds-dex-table-row-base-token-symbol')
+                    symbol = symbol_element.text.strip() if symbol_element else ''
+                    
+                    # Get token address from link
+                    link = row.get('href', '')
+                    address = link.split('/')[-1] if link else ''
+                    
+                    # Combine data with address first
+                    row_data = [address, symbol] + [cell.text.strip() for cell in cells[1:]]
+                    
+                    if any(row_data):
+                        rows_data.append(row_data)
+            
+            # with open('rows_data.html', 'w', encoding='utf-8') as f:
+            #     f.write(str(rows_data))
+
+            if rows_data:
+                await store_to_database(rows_data, header_texts)
+                print(f"Successfully extracted and stored {len(rows_data)} rows")
+            else:
+                print("No data rows found in the table")
         else:
             print("Table container not found")
             
@@ -94,4 +180,5 @@ def scrape_data():
         driver.quit()
 
 if __name__ == "__main__":
-    scrape_data()
+    import asyncio
+    asyncio.run(scrape_data())

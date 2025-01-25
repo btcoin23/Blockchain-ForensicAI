@@ -1,0 +1,12 @@
+# config files
+
+.env.*
+cookies.json
+
+# result files
+
+*.csv
+
+# test files
+
+*.html
