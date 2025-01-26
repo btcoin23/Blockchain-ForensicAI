@@ -25,7 +25,7 @@ def save_cookies(driver):
 async def get_tokens():
     db = Prisma()
     await db.connect()
-    tokens = await db.token.find_many(take=1)
+    tokens = await db.token.find_many()
     await db.disconnect()
     return tokens
 
@@ -51,6 +51,20 @@ def setup_driver():
     
     return driver
 
+def convert_to_number(value):
+    if value == '-' or value == 'Unknown':
+        return '0'
+    # Remove $, commas, and < symbols
+    value = value.replace('$', '').replace(',', '').replace('<', '')
+    
+    # Handle K, M, B multipliers
+    multipliers = {'K': 1000, 'M': 1000000, 'B': 1000000000}
+    for suffix, multiplier in multipliers.items():
+        if suffix in value:
+            number = float(value.replace(suffix, '')) * multiplier
+            return str(number)
+    return value
+
 def extract_table_data(table):
     data = []
     rows = table.select('.custom-1nvxwu0')
@@ -70,81 +84,164 @@ def extract_table_data(table):
         # Extract bought amount
         bought_div = row.select('.custom-1o79wax')[0]
         bought_span = bought_div.select_one('.custom-6qd5i2, .custom-rcecxm')
-        bought = bought_span.text if bought_span else '-'
+        bought = convert_to_number(bought_span.text) if bought_span else '0'
         
-        # Extract bought volume if exists
-        bought_volume = ''
-        if bought != '-':
+        # Extract bought volume
+        if bought != '0':
             volume_span = bought_div.select_one('.custom-2ygcmq')
-            bought_volume = volume_span.text if volume_span else ''
-        
+            bought_volume = convert_to_number(volume_span.text) if volume_span else '0'
+        else:
+            continue
+
         # Extract sold amount
         sold_div = row.select('.custom-1o79wax')[1]
         sold_span = sold_div.select_one('.custom-6qd5i2, .custom-dv3t8y')
-        sold = sold_span.text if sold_span else '-'
+        sold = convert_to_number(sold_span.text) if sold_span else '0'
         
-        # Extract sold volume if exists
-        sold_volume = ''
-        if sold != '-':
+        # Extract sold volume
+        if sold != '0':
             volume_span = sold_div.select_one('.custom-2ygcmq')
-            sold_volume = volume_span.text if volume_span else ''
+            sold_volume = convert_to_number(volume_span.text) if volume_span else '0'
+        else:
+            sold_volume = '0'
         
-        # Extract PNL
+        # Extract PNL with sign
         pnl_element = row.select_one('.custom-1e9y0rl, .custom-1yklr7h')
-        pnl = pnl_element.text if pnl_element else '-'
+        if pnl_element:
+            # Convert value to number first
+            raw_value = float(convert_to_number(pnl_element.text))
+            # custom-1e9y0rl is positive, custom-1yklr7h is negative
+            pnl = str(raw_value) if 'custom-1e9y0rl' in pnl_element.get('class', []) else str(-raw_value)
+        else:
+            pnl = '0'
 
         # Extract unrealized value
         unrealized_div = row.select_one('.custom-1hd7h4r')
         unrealized_span = unrealized_div.select_one('.custom-6qd5i2')
-        unrealized = unrealized_span.text if unrealized_span else unrealized_div.text
+        unrealized = convert_to_number(unrealized_span.text if unrealized_span else unrealized_div.text)
 
         # Extract balance
         balance_div = row.select_one('.custom-1cicvqe')
         balance_unknown = balance_div.select_one('.custom-sqw9c5')
         if balance_unknown:
-            balance = balance_unknown.text
+            balance = '0'
         else:
             balance_spans = balance_div.select('.custom-2ygcmq')
             if len(balance_spans) >= 2:
-                balance = f"{balance_spans[0].text}/{balance_spans[1].text}"
+                current_balance = convert_to_number(balance_spans[0].text)
+                total_supply = convert_to_number(balance_spans[1].text)
+                balance = f"{current_balance}/{total_supply}"
             else:
-                balance = '-'
+                balance = '0'
         
-        # Extract transactions count
-        txns_text = row.select('.custom-13ppmr2')[0].text
-        txns = txns_text.split('/')[1].strip().split()[0] if txns_text else '0'
+       # Extract transactions count
+        txns_elements = row.select('.custom-13ppmr2')
+        if txns_elements:
+            txns_text = txns_elements[0].text
+            txns = txns_text.split('/')[1].strip().split()[0] if txns_text else '0'
+        else:
+            txns = '0'
         
         row_data = [rank, wallet, bought, bought_volume, sold, sold_volume, pnl, unrealized, balance, txns]
         data.append(row_data)
     
     return data
 
+async def store_to_database(traders_data):
+    db = Prisma()
+    await db.connect()
+
+    for row in traders_data:
+        try:
+            await db.toptrader.upsert(
+                where={
+                    'tokenAddress_period_rank': {
+                        'tokenAddress': row[0],
+                        'period': row[1],
+                        'rank': int(row[2])
+                    }
+                },
+                data={
+                    'create': {
+                        'tokenAddress': row[0],
+                        'period': row[1],
+                        'rank': int(row[2]),
+                        'wallet': row[3],
+                        'boughtAmount': float(row[4]),
+                        'boughtVolume': float(row[5]),
+                        'soldAmount': float(row[6]),
+                        'soldVolume': float(row[7]),
+                        'pnl': float(row[8]),
+                        'unrealized': row[9],
+                        'balance': row[10],
+                        'transactions': row[11]
+                    },
+                    'update': {
+                        'wallet': row[3],
+                        'boughtAmount': float(row[4]),
+                        'boughtVolume': float(row[5]),
+                        'soldAmount': float(row[6]),
+                        'soldVolume': float(row[7]),
+                        'pnl': float(row[8]),
+                        'unrealized': row[9],
+                        'balance': row[10],
+                        'transactions': row[11]
+                    }
+                }
+            )
+        except Exception as e:
+            print(f"Error storing trader data: {str(e)}")
+
+    await db.disconnect()
+
 async def scrape_top_traders():
     tokens = await get_tokens()
     driver = setup_driver()
-    all_traders_data = []
     periods = ['30d', '7d', '3d', '1d']
+    all_traders_data = []
+    max_retries = 3
+    retry_delay = 10
+
+    start_time = time.time()
+    total_tokens = len(tokens)
+
+    cookies = load_cookies()
+
+    if tokens:
+        url = f"https://dexscreener.com/{tokens[0].chain.lower()}/{tokens[0].address}"
+        driver.get(url)
+    
+        if cookies:
+            for cookie in cookies:
+                driver.add_cookie(cookie)
 
     try:
-        for token in tokens:
-            cookies = load_cookies()
-            url = f"https://dexscreener.com/{token.chain.lower()}/{token.address}"
-            driver.get(url)
+        for index, token in enumerate(tokens, 1):
+            token_start_time = time.time()
+            token_traders_data = []
+            retries = 0
+            while retries < max_retries:
+                try:
+                    url = f"https://dexscreener.com/{token.chain.lower()}/{token.address}"
+                    driver.get(url)
 
-            if cookies:
-                driver.delete_all_cookies()
-                for cookie in cookies:
-                    driver.add_cookie(cookie)
-                driver.refresh()
-            
-            wait = WebDriverWait(driver, 60)
-            wait.until(lambda d: d.execute_script('return document.readyState') == 'complete')
+                    wait = WebDriverWait(driver, 60)
+                    wait.until(lambda d: d.execute_script('return document.readyState') == 'complete')
+                    break
+                
+                except Exception as e:
+                    retries += 1
+                    if retries == max_retries:
+                        print(f"Failed to process token {token.token} after {max_retries} attempts")
+                        continue
+                    print(f"Retry {retries}/{max_retries} for token {token.token}")
+                    time.sleep(retry_delay)
             
             # Scroll multiple times with longer pauses
             scroll_height = 0
             for _ in range(10):
                 driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-                time.sleep(5)
+                time.sleep(2)
                 
                 new_height = driver.execute_script("return document.body.scrollHeight")
                 if new_height == scroll_height:
@@ -159,17 +256,18 @@ async def scrape_top_traders():
             top_traders_button.click()
             
             # Wait for table to load
-            time.sleep(5)
+            time.sleep(2)
             
             # Update the period button click part in scrape_top_traders function
             for period in periods:
-                # Find period button
-                period_button = wait.until(
-                    EC.presence_of_element_located((By.XPATH, f"//button[.//span[text()='{period}']]"))
-                )
-                # Use JavaScript to click the button
-                driver.execute_script("arguments[0].click();", period_button)
-                time.sleep(3)
+                if period != '30d':
+                    # Find period button
+                    period_button = wait.until(
+                        EC.presence_of_element_located((By.XPATH, f"//button[.//span[text()='{period}']]"))
+                    )
+                    # Use JavaScript to click the button
+                    driver.execute_script("arguments[0].click();", period_button)
+                    time.sleep(2)
                 
                 # Find the table
                 table = wait.until(
@@ -182,24 +280,26 @@ async def scrape_top_traders():
                 
                 # Add token info and period to each row
                 for row in traders_data:
-                    row.extend([token.address, token.token, token.chain, period])
-                    all_traders_data.append(row)
+                    row_data = [token.address, period] + row
+                    token_traders_data.append(row_data)
                 
-            print(f"Processed token: {token.token}")
+            # Store data for this token immediately
+            all_traders_data.extend(token_traders_data)
+                
+            token_time = time.time() - token_start_time
+            total_time = time.time() - start_time
+            print(f"Token {index}/{total_tokens}: {token.token} | Time for token: {token_time:.2f}s | Total time: {total_time:.2f}s")
             time.sleep(2)
-
 
     finally:
         save_cookies(driver)
         driver.quit()
-
-     # Create DataFrame and save to CSV
-    columns = ['Rank', 'Wallet', 'Bought Amount', 'Bought Volume', 'Sold Amount', 'Sold Volume', 
-              'PNL', 'Unrealized', 'Balance', 'Transactions', 'Token Address', 'Token Symbol', 
-              'Chain', 'Period']
-    df = pd.DataFrame(all_traders_data, columns=columns)
-    df.to_csv('toptraders.csv', index=False)
-    print("Data saved to toptraders.csv")
+    
+    # Store all data in the database
+    batch_size = 100
+    for i in range(0, len(all_traders_data), batch_size):
+        batch = all_traders_data[i:i + batch_size]
+        await store_to_database(batch)
 
 if __name__ == "__main__":
     import asyncio
