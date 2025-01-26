@@ -1,0 +1,12 @@
+bs4
+flask
+flask-cors
+hypercorn
+pandas
+prisma
+quart
+quart-cors
+selenium
+uvicorn
+waitress
+webdriver_manager

@@ -8,8 +8,9 @@ generator client {
 }
 
 model Token {
-  id         Int      @id @default(autoincrement())
-  address    String   @unique
+  address    String   @id
+  chain      String?
+  dex        String?
   token      String
   price      String?
   age        String?
@@ -26,4 +27,24 @@ model Token {
   updatedAt  DateTime @updatedAt
 
   @@map("tokens")
+}
+
+model TopTrader {
+  tokenAddress  String
+  period        String
+  rank          Int
+  wallet        String
+  boughtAmount  Float
+  boughtVolume  Float
+  soldAmount    Float
+  soldVolume    Float
+  pnl           Float
+  unrealized    String
+  balance       String
+  transactions  String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@id([tokenAddress, period, rank])
+  @@map("top_traders")
 }
