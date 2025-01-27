@@ -58,7 +58,15 @@ def convert_to_number(value):
     value = value.replace('$', '').replace(',', '').replace('<', '')
     
     # Handle K, M, B multipliers
-    multipliers = {'K': 1000, 'M': 1000000, 'B': 1000000000}
+    multipliers = {
+        'K': 1000,                    # Thousand
+        'M': 1000000,                 # Million
+        'B': 1000000000,              # Billion
+        'T': 1000000000000,           # Trillion
+        'Q': 1000000000000000,        # Quadrillion
+        'Qi': 1000000000000000000,    # Quintillion
+        'Sx': 1000000000000000000000  # Sextillion
+    }
     for suffix, multiplier in multipliers.items():
         if suffix in value:
             number = float(value.replace(suffix, '')) * multiplier
