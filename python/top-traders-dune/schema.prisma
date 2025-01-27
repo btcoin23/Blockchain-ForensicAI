@@ -1,0 +1,46 @@
+model MostProfitableWallets {
+  id                    Int      @id @default(autoincrement())
+  trader_id             String
+  period               Int
+  total_profit         Float
+  total_buy_usd        Float
+  total_sell_usd       Float
+  total_trades         Int
+  total_wins           Int
+  total_losses         Int
+  win_rate             Float
+  avg_profit_per_trade Float
+  total_volume_bought  Float
+  total_volume_sold    Float
+  total_volume_traded  Float
+  pnl_ratio           Float
+  last_trade_time     DateTime
+  rn                  Int
+
+  @@map("most_profitable_wallets")
+}
+
+model HighActivityWalletsByVolume {
+  id              Int      @id @default(autoincrement())
+  days            Int
+  wallet_address  String
+  total_volume_usd Float
+  total_trades    Int
+  avg_trade_size_usd Float
+  last_trade_time DateTime
+
+  @@map("high_activity_wallets_by_volume")
+}
+
+model HighActivityWalletsByTransactions {
+  id                     Int      @id @default(autoincrement())
+  days                   Int
+  wallet                 String
+  total_transactions     Int
+  avg_daily_transactions Float
+  total_volume_usd       Float
+  avg_trade_size_usd     Float
+  last_trade_time        DateTime
+
+  @@map("high_activity_wallets_by_transactions")
+}
