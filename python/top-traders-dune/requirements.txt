@@ -2,3 +2,6 @@ dune-client
 pyyaml
 python-dotenv
 pandas
+prisma
+quart
+quart_cors
