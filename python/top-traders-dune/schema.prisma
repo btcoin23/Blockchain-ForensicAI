@@ -1,6 +1,31 @@
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-py"
+}
+
+model EarlyTokenBuyers {
+    id              Int      @id @default(autoincrement())
+    token_mint_address String
+    symbol          String
+    token_launch_time DateTime
+    trader_id       String
+    token_bought_amount Float
+    amount_usd      Float
+    block_time      DateTime
+    buyer_rank      Int
+
+    @@unique([token_mint_address, trader_id])
+    @@index([token_launch_time])
+    @@index([buyer_rank])
+}
+
 model MostProfitableWallets {
   id                    Int      @id @default(autoincrement())
-  trader_id             String
+  trader_id             String   
   period               Int
   total_profit         Float
   total_buy_usd        Float
@@ -17,30 +42,33 @@ model MostProfitableWallets {
   last_trade_time     DateTime
   rn                  Int
 
+  @@unique([trader_id, period])
   @@map("most_profitable_wallets")
 }
 
 model HighActivityWalletsByVolume {
   id              Int      @id @default(autoincrement())
   days            Int
-  wallet_address  String
+  trader_id        String   
   total_volume_usd Float
   total_trades    Int
   avg_trade_size_usd Float
   last_trade_time DateTime
 
+  @@unique([trader_id, days])
   @@map("high_activity_wallets_by_volume")
 }
 
 model HighActivityWalletsByTransactions {
   id                     Int      @id @default(autoincrement())
   days                   Int
-  wallet                 String
+  trader_id              String   
   total_transactions     Int
   avg_daily_transactions Float
   total_volume_usd       Float
   avg_trade_size_usd     Float
   last_trade_time        DateTime
 
+  @@unique([trader_id, days])
   @@map("high_activity_wallets_by_transactions")
 }
