@@ -8,19 +8,40 @@ generator client {
 }
 
 model EarlyTokenBuyers {
-    id              Int      @id @default(autoincrement())
+    id                Int      @id @default(autoincrement())
     token_mint_address String
-    symbol          String
+    symbol            String
     token_launch_time DateTime
-    trader_id       String
+    trader_id         String
     token_bought_amount Float
-    amount_usd      Float
-    block_time      DateTime
-    buyer_rank      Int
+    amount_usd        Float
+    block_time        DateTime
+    buyer_rank        Int
+    last_updated      Float
+
+    @@unique([token_mint_address, buyer_rank])
+}
+
+model TokenProfitableWallets {
+    id                    Int      @id @default(autoincrement())
+    token_mint_address    String
+    trader_id            String
+    total_profit         Float
+    total_buy_usd        Float
+    total_sell_usd       Float
+    total_trades         Int
+    total_wins           Int
+    total_losses         Int
+    win_rate            Float
+    avg_profit_per_trade Float
+    total_volume_bought  Float
+    total_volume_sold    Float
+    total_volume_traded  Float
+    pnl_ratio           Float
+    last_trade_time     DateTime
+    last_updated        Float
 
     @@unique([token_mint_address, trader_id])
-    @@index([token_launch_time])
-    @@index([buyer_rank])
 }
 
 model MostProfitableWallets {
@@ -71,4 +92,19 @@ model HighActivityWalletsByTransactions {
 
   @@unique([trader_id, days])
   @@map("high_activity_wallets_by_transactions")
+}
+
+model TokenHoldingTimes {
+    id                    Int      @id @default(autoincrement())
+    trader_id            String
+    shortest_hold_time   Float
+    longest_hold_time    Float
+    average_hold_time    Float
+    shortest_hold_token  String
+    shortest_hold_symbol String
+    longest_hold_token   String
+    longest_hold_symbol  String
+    last_updated        Float
+
+    @@unique([trader_id])
 }
