@@ -82,26 +82,19 @@ async def get_first_buy_wallets():
 
 
     try:
-        try:
-            query_results = dune.get_latest_result(
-                query_id=4628657,
-                params={'token_mint_address': token_mint_address}
-            )
-        except Exception as e:
-            print("Error fetching data from Dune:", e)
-            query = QueryBase(
-                name="First Buy wallets of a token within 10mins after launch.",
-                query_id=4628657,
-                params=[
-                    QueryParameter.text_type(name="token_mint_address", value=token_mint_address)
-                ],
-            )
+        query = QueryBase(
+            name="First Buy wallets of a token within 10mins after launch.",
+            query_id=4628657,
+            params=[
+                QueryParameter.text_type(name="token_mint_address", value=token_mint_address)
+            ],
+        )
 
-            query_results = dune.run_query(query = query)
-        
+        query_results = dune.run_query(query = query)
+
         rows = query_results.result.rows
         processed_rows = []
-        
+
         for row in rows:
             processed_row = {
                 'token_mint_address': row['token_mint_address'],
@@ -114,7 +107,7 @@ async def get_first_buy_wallets():
                 'buyer_rank': int(row['buyer_rank']),
                 'last_updated': datetime.now().timestamp()
             }
-            
+
             await prisma.earlytokenbuyers.create(data=processed_row)
             processed_rows.append(processed_row)
 
@@ -164,22 +157,15 @@ async def get_token_profitable_wallets():
         ]})
 
     try:
-        try:
-            query_results = dune.get_latest_result(
-                query_id=4639226,
-                params={'token_mint_address': token_mint_address}
-            )
-        except Exception as e:
-            print("Error fetching data from Dune:", e)
-            query = QueryBase(
-                name="Most profitable wallets for a given token.",
-                query_id=4639226,
-                params=[
-                    QueryParameter.text_type(name="token_mint_address", value=token_mint_address)
-                ],
-            )
+        query = QueryBase(
+            name="Most profitable wallets for a given token.",
+            query_id=4639226,
+            params=[
+                QueryParameter.text_type(name="token_mint_address", value=token_mint_address)
+            ],
+        )
 
-            query_results = dune.run_query(query = query)
+        query_results = dune.run_query(query = query)
         
         rows = query_results.result.rows
         processed_rows = []
@@ -307,6 +293,77 @@ async def get_high_transaction_wallets():
         'last_trade_time': w.last_trade_time
     } for w in wallets]
     return jsonify({'wallets': wallets_dict})
+
+@app.route('/api/wallet-holding-times', methods=['GET'])
+async def get_wallet_holding_times():
+    trader_id = request.args.get('trader_id')
+    
+    if not trader_id:
+        return jsonify({'error': 'trader_id parameter is required'}), 400
+
+    existing_result = await prisma.tokenholdingtimes.find_first(
+        where={
+            'trader_id': trader_id,
+            'last_updated': {
+                'gte': datetime.now().timestamp() - (24 * 60 * 60)
+            }
+        }
+    )
+
+    if existing_result:
+        return jsonify({
+            'trader_id': existing_result.trader_id,
+            'shortest_hold_time': existing_result.shortest_hold_time,
+            'longest_hold_time': existing_result.longest_hold_time,
+            'average_hold_time': existing_result.average_hold_time,
+            'shortest_hold_token': existing_result.shortest_hold_token,
+            'shortest_hold_symbol': existing_result.shortest_hold_symbol,
+            'longest_hold_token': existing_result.longest_hold_token,
+            'longest_hold_symbol': existing_result.longest_hold_symbol
+        })
+
+    try:
+        query = QueryBase(
+            name="How long a wallet holds a token before selling - Shortest hold, longest hold and average hold.",
+            query_id=4639965,
+            params=[
+                QueryParameter.text_type(name="trader_id", value=trader_id)
+            ],
+        )
+
+        query_results = dune.run_query(query = query)
+        
+        row = query_results.result.rows[0]
+        current_time = datetime.now().timestamp()
+        
+        holding_times = {
+            'trader_id': row['trader_id'],
+            'shortest_hold_time': float(row['shortest_hold_time']),
+            'longest_hold_time': float(row['longest_hold_time']),
+            'average_hold_time': float(row['average_hold_time']),
+            'shortest_hold_token': row['shortest_hold_token'],
+            'shortest_hold_symbol': row['shortest_hold_symbol'],
+            'longest_hold_token': row['longest_hold_token'],
+            'longest_hold_symbol': row['longest_hold_symbol'],
+            'last_updated': current_time
+        }
+        
+        await prisma.tokenholdingtimes.create(data=holding_times)
+        
+        return jsonify({
+            'trader_id': holding_times['trader_id'],
+            'shortest_hold_time': holding_times['shortest_hold_time'],
+            'longest_hold_time': holding_times['longest_hold_time'],
+            'average_hold_time': holding_times['average_hold_time'],
+            'shortest_hold_token': holding_times['shortest_hold_token'],
+            'shortest_hold_symbol': holding_times['shortest_hold_symbol'],
+            'longest_hold_token': holding_times['longest_hold_token'],
+            'longest_hold_symbol': holding_times['longest_hold_symbol']
+        })
+
+    except Exception as e:
+        logger.error(f"Error querying Dune: {str(e)}")
+        return jsonify({'error': 'Failed to fetch data from Dune'}), 500
 
 @app.route('/api/update-data', methods=['POST'])
 async def update_data():

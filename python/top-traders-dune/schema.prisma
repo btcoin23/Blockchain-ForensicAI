@@ -93,3 +93,18 @@ model HighActivityWalletsByTransactions {
   @@unique([trader_id, days])
   @@map("high_activity_wallets_by_transactions")
 }
+
+model TokenHoldingTimes {
+    id                    Int      @id @default(autoincrement())
+    trader_id            String
+    shortest_hold_time   Float
+    longest_hold_time    Float
+    average_hold_time    Float
+    shortest_hold_token  String
+    shortest_hold_symbol String
+    longest_hold_token   String
+    longest_hold_symbol  String
+    last_updated        Float
+
+    @@unique([trader_id])
+}
