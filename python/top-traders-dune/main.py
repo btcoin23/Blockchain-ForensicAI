@@ -365,6 +365,44 @@ async def get_wallet_holding_times():
         logger.error(f"Error querying Dune: {str(e)}")
         return jsonify({'error': 'Failed to fetch data from Dune'}), 500
 
+@app.route('/api/successful-token-deployers', methods=['GET'])
+async def get_successful_token_deployers():
+    period = request.args.get('period', '30')
+    try:
+        period = int(period)
+        if period not in [1, 7, 30]:
+            return jsonify({'error': 'Period must be 1, 7, or 30'}), 400
+    except ValueError:
+        return jsonify({'error': 'Invalid period value'}), 400
+
+    tokens = await prisma.tokendeployersuccess.find_many(
+        where={
+            'period_days': period
+        },
+        order={
+            'max_market_cap': 'desc'
+        }
+    )
+    
+    tokens_dict = [{
+        'token_mint_address': t.token_mint_address,
+        'symbol': t.symbol,
+        'name': t.name,
+        'decimals': t.decimals,
+        'created_at': t.created_at,
+        'init_tx': t.init_tx,
+        'total_supply': t.total_supply,
+        'current_price': t.current_price,
+        'max_price_in_period': t.max_price_in_period,
+        'max_historical_price': t.max_historical_price,
+        'current_market_cap': t.current_market_cap,
+        'max_market_cap': t.max_market_cap,
+        'token_creator': t.token_creator,
+        'token_launch_time': t.token_launch_time
+    } for t in tokens]
+    
+    return jsonify({'tokens': tokens_dict})
+
 @app.route('/api/update-data', methods=['POST'])
 async def update_data():
     try:
@@ -404,6 +442,13 @@ async def update_data():
                     )
                 elif id == 4629509:  # Most Profitable Wallets
                     await prisma.mostprofitablewallets.create(
+                        data=row
+                    )
+                elif id == 4652557:  # Token Deployer Success
+                    row['created_at'] = datetime.strptime(row['created_at'].split('.')[0], '%Y-%m-%d %H:%M:%S')
+                    row['token_launch_time'] = datetime.strptime(row['token_launch_time'].split('.')[0], '%Y-%m-%d %H:%M:%S')
+                    
+                    await prisma.tokendeployersuccess.create(
                         data=row
                     )
 

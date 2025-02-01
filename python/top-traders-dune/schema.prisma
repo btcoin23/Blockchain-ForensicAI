@@ -108,3 +108,26 @@ model TokenHoldingTimes {
 
     @@unique([trader_id])
 }
+
+model TokenDeployerSuccess {
+    id                      Int      @id @default(autoincrement())
+    token_mint_address      String
+    symbol                  String
+    name                    String
+    decimals               Int
+    created_at             DateTime
+    init_tx                String
+    period_days            Int
+    total_supply           Float
+    current_price          Float
+    max_price_in_period    Float
+    max_historical_price   Float?
+    current_market_cap     Float
+    max_market_cap         Float
+    token_creator          String
+    token_launch_time      DateTime
+    rank                   Int
+
+    @@unique([token_mint_address, period_days, rank])
+    @@map("token_deployer_success")
+}
