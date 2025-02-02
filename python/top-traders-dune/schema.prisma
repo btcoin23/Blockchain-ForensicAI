@@ -121,13 +121,12 @@ model TokenDeployerSuccess {
     total_supply           Float
     current_price          Float
     max_price_in_period    Float
-    max_historical_price   Float?
     current_market_cap     Float
     max_market_cap         Float
     token_creator          String
     token_launch_time      DateTime
     rank                   Int
 
-    @@unique([token_mint_address, period_days, rank])
+    @@unique([period_days, rank])
     @@map("token_deployer_success")
 }
