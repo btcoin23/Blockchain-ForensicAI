@@ -370,8 +370,8 @@ async def get_successful_token_deployers():
     period = request.args.get('period', '30')
     try:
         period = int(period)
-        if period not in [1, 7, 30]:
-            return jsonify({'error': 'Period must be 1, 7, or 30'}), 400
+        if period not in [2, 7, 30]:
+            return jsonify({'error': 'Period must be 2, 7, or 30'}), 400
     except ValueError:
         return jsonify({'error': 'Invalid period value'}), 400
 
@@ -394,7 +394,6 @@ async def get_successful_token_deployers():
         'total_supply': t.total_supply,
         'current_price': t.current_price,
         'max_price_in_period': t.max_price_in_period,
-        'max_historical_price': t.max_historical_price,
         'current_market_cap': t.current_market_cap,
         'max_market_cap': t.max_market_cap,
         'token_creator': t.token_creator,
@@ -444,7 +443,7 @@ async def update_data():
                     await prisma.mostprofitablewallets.create(
                         data=row
                     )
-                elif id == 4652557:  # Token Deployer Success
+                elif id == 4656172:  # Token Deployer Success
                     row['created_at'] = datetime.strptime(row['created_at'].split('.')[0], '%Y-%m-%d %H:%M:%S')
                     row['token_launch_time'] = datetime.strptime(row['token_launch_time'].split('.')[0], '%Y-%m-%d %H:%M:%S')
                     
