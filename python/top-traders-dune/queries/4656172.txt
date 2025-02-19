@@ -1,0 +1,138 @@
+// Success Token Deployers in 1/7/30 days
+
+WITH periods AS (
+    SELECT 2 as period_days UNION ALL
+    SELECT 7 UNION ALL
+    SELECT 30
+),
+
+base_tokens AS (
+    SELECT 
+        token_mint_address,
+        symbol,
+        name,
+        decimals,
+        created_at,
+        init_tx
+    FROM tokens_solana.fungible
+    WHERE created_at >= NOW() - INTERVAL '30' DAY
+),
+
+token_supply AS (
+    SELECT
+        t.token_mint_address,
+        SUM(CASE WHEN action = 'mint' THEN amount ELSE -amount END) AS total_supply_with_decimals
+    FROM tokens_solana.transfers t
+    JOIN base_tokens bt ON t.token_mint_address = bt.token_mint_address
+    WHERE 
+        t.block_time >= bt.created_at
+        AND action IN ('mint', 'burn')
+    GROUP BY t.token_mint_address
+),
+
+recent_prices_2d AS (
+    SELECT
+        contract_address,
+        2 as period_days,
+        LAST_VALUE(price) OVER w as current_price,
+        MAX(price) OVER (PARTITION BY contract_address) as max_price_in_period
+    FROM prices_solana.MINUTE
+    WHERE timestamp >= NOW() - INTERVAL '2' DAY
+    WINDOW w AS (
+        PARTITION BY contract_address
+        ORDER BY timestamp
+        RANGE BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING
+    )
+),
+
+recent_prices_7d AS (
+    SELECT
+        contract_address,
+        7 as period_days,
+        LAST_VALUE(price) OVER w as current_price,
+        MAX(price) OVER (PARTITION BY contract_address) as max_price_in_period
+    FROM prices_solana.MINUTE
+    WHERE timestamp >= NOW() - INTERVAL '7' DAY
+    WINDOW w AS (
+        PARTITION BY contract_address
+        ORDER BY timestamp
+        RANGE BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING
+    )
+),
+
+recent_prices_30d AS (
+    SELECT
+        contract_address,
+        30 as period_days,
+        LAST_VALUE(price) OVER w as current_price,
+        MAX(price) OVER (PARTITION BY contract_address) as max_price_in_period
+    FROM prices_solana.MINUTE
+    WHERE timestamp >= NOW() - INTERVAL '30' DAY
+    WINDOW w AS (
+        PARTITION BY contract_address
+        ORDER BY timestamp
+        RANGE BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING
+    )
+),
+
+recent_prices_combined AS (
+    SELECT * FROM recent_prices_2d
+    UNION ALL
+    SELECT * FROM recent_prices_7d
+    UNION ALL
+    SELECT * FROM recent_prices_30d
+),
+
+final_prices AS (
+    SELECT DISTINCT
+        contract_address,
+        period_days,
+        current_price,
+        max_price_in_period
+    FROM recent_prices_combined
+),
+
+token_base_data AS (
+    SELECT
+        ts.token_mint_address,
+        bt.symbol,
+        bt.name,
+        bt.decimals,
+        bt.created_at,
+        bt.init_tx,
+        p.period_days,
+        (ts.total_supply_with_decimals / POWER(10, bt.decimals)) as total_supply,
+        p.current_price,
+        p.max_price_in_period,
+        ((ts.total_supply_with_decimals / POWER(10, bt.decimals)) * p.current_price) AS current_market_cap,
+        ((ts.total_supply_with_decimals / POWER(10, bt.decimals)) * p.max_price_in_period) AS max_market_cap
+    FROM token_supply ts
+    JOIN base_tokens bt ON ts.token_mint_address = bt.token_mint_address
+    JOIN final_prices p ON ts.token_mint_address = p.contract_address
+    WHERE bt.created_at >= NOW() - p.period_days * INTERVAL '1' DAY
+),
+
+first_mint AS (
+    SELECT DISTINCT
+        tbd.token_mint_address,
+        t.signer as token_creator,
+        t.block_time as token_launch_time
+    FROM solana.transactions t
+    JOIN token_base_data tbd ON t.id = tbd.init_tx
+    WHERE t.block_time = tbd.created_at
+),
+
+ranked_tokens AS (
+    SELECT 
+        tbd.*,
+        fm.token_creator,
+        fm.token_launch_time,
+        ROW_NUMBER() OVER (PARTITION BY tbd.period_days ORDER BY max_market_cap DESC) as rank
+    FROM token_base_data tbd
+    LEFT JOIN first_mint fm ON tbd.token_mint_address = fm.token_mint_address
+)
+
+SELECT *
+FROM ranked_tokens
+WHERE rank <= 10
+ORDER BY period_days, rank;
