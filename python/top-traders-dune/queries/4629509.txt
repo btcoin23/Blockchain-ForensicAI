@@ -1,0 +1,87 @@
+// Most profitable wallets in the last 1/7/30 days
+
+WITH periods AS (
+  SELECT 1 AS period 
+  UNION ALL
+  SELECT 7 AS period 
+  UNION ALL
+  SELECT 30 AS period
+),
+buy_transactions AS (
+  SELECT
+    trader_id,
+    token_bought_symbol,
+    token_bought_amount,
+    amount_usd AS buy_amount_usd,
+    block_time AS buy_block_time,
+    period
+  FROM dex_solana.trades
+  CROSS JOIN periods
+  WHERE
+    amount_usd > {{bought_limit}}
+    AND block_time >= DATE_TRUNC('day', NOW()) - period * INTERVAL '1' DAY
+), 
+sell_transactions AS (
+  SELECT
+    trader_id,
+    token_sold_symbol,
+    token_sold_amount,
+    amount_usd AS sell_amount_usd,
+    block_time AS sell_block_time,
+    period
+  FROM dex_solana.trades
+  CROSS JOIN periods
+  WHERE
+    token_sold_amount IS NOT NULL 
+    AND block_time >= DATE_TRUNC('day', NOW()) - period * INTERVAL '1' DAY
+), 
+matched_transactions AS (
+  SELECT
+    b.trader_id,
+    b.token_bought_symbol,
+    b.token_bought_amount,
+    b.buy_amount_usd,
+    b.buy_block_time,
+    s.token_sold_amount,
+    s.sell_amount_usd,
+    s.sell_block_time,
+    b.period,
+    CASE WHEN s.sell_amount_usd > b.buy_amount_usd THEN 1 ELSE 0 END AS win
+  FROM buy_transactions b
+  JOIN sell_transactions s
+    ON b.trader_id = s.trader_id
+    AND b.token_bought_symbol = s.token_sold_symbol
+    AND b.buy_block_time < s.sell_block_time
+    AND b.token_bought_amount = s.token_sold_amount
+),
+ranked_results AS (
+  SELECT
+    trader_id,
+    period,
+    SUM(sell_amount_usd - buy_amount_usd) AS total_profit,
+    SUM(buy_amount_usd) AS total_buy_usd,
+    SUM(sell_amount_usd) AS total_sell_usd,
+    COUNT(win) AS total_trades,
+    SUM(win) AS total_wins,
+    COUNT(*) - SUM(win) AS total_losses,
+    CAST(SUM(win) AS DOUBLE) / NULLIF(COUNT(win), 0) AS win_rate,
+    CAST(SUM(sell_amount_usd - buy_amount_usd) AS DOUBLE) / NULLIF(COUNT(win), 0) AS avg_profit_per_trade,
+    SUM(token_bought_amount) AS total_volume_bought,
+    SUM(token_sold_amount) AS total_volume_sold,
+    SUM(token_bought_amount + token_sold_amount) AS total_volume_traded,
+    CASE
+      WHEN SUM(buy_amount_usd) = 0 THEN 0
+      ELSE CAST(SUM(sell_amount_usd - buy_amount_usd) AS DOUBLE) / NULLIF(SUM(buy_amount_usd), 0)
+    END AS pnl_ratio,
+    MAX(sell_block_time) AS last_trade_time,
+    ROW_NUMBER() OVER (PARTITION BY period ORDER BY CASE
+      WHEN SUM(buy_amount_usd) = 0 THEN 0
+      ELSE CAST(SUM(sell_amount_usd - buy_amount_usd) AS DOUBLE) / NULLIF(SUM(buy_amount_usd), 0)
+    END DESC) AS rn
+  FROM matched_transactions
+  GROUP BY trader_id, period
+)
+SELECT *
+FROM ranked_results
+WHERE rn <= 10
+ORDER BY period, pnl_ratio DESC

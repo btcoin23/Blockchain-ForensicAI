@@ -8,45 +8,45 @@ generator client {
 }
 
 model EarlyTokenBuyers {
-    id                Int      @id @default(autoincrement())
-    token_mint_address String
-    symbol            String
-    token_launch_time DateTime
-    trader_id         String
-    token_bought_amount Float
-    amount_usd        Float
-    block_time        DateTime
-    buyer_rank        Int
-    last_updated      Float
+  id                  Int      @id @default(autoincrement())
+  token_mint_address  String
+  symbol              String
+  token_launch_time   DateTime
+  trader_id           String
+  token_bought_amount Float
+  amount_usd          Float
+  block_time          DateTime
+  buyer_rank          Int
+  last_updated        Float
 
-    @@unique([token_mint_address, buyer_rank])
+  @@unique([token_mint_address, buyer_rank])
 }
 
 model TokenProfitableWallets {
-    id                    Int      @id @default(autoincrement())
-    token_mint_address    String
-    trader_id            String
-    total_profit         Float
-    total_buy_usd        Float
-    total_sell_usd       Float
-    total_trades         Int
-    total_wins           Int
-    total_losses         Int
-    win_rate            Float
-    avg_profit_per_trade Float
-    total_volume_bought  Float
-    total_volume_sold    Float
-    total_volume_traded  Float
-    pnl_ratio           Float
-    last_trade_time     DateTime
-    last_updated        Float
+  id                   Int      @id @default(autoincrement())
+  token_mint_address   String
+  trader_id            String
+  total_profit         Float
+  total_buy_usd        Float
+  total_sell_usd       Float
+  total_trades         Int
+  total_wins           Int
+  total_losses         Int
+  win_rate             Float
+  avg_profit_per_trade Float
+  total_volume_bought  Float
+  total_volume_sold    Float
+  total_volume_traded  Float
+  pnl_ratio            Float
+  last_trade_time      DateTime
+  last_updated         Float
 
-    @@unique([token_mint_address, trader_id])
+  @@unique([token_mint_address, trader_id])
 }
 
 model MostProfitableWallets {
-  id                    Int      @id @default(autoincrement())
-  trader_id             String   
+  id                   Int      @id @default(autoincrement())
+  trader_id            String
   period               Int
   total_profit         Float
   total_buy_usd        Float
@@ -59,22 +59,46 @@ model MostProfitableWallets {
   total_volume_bought  Float
   total_volume_sold    Float
   total_volume_traded  Float
-  pnl_ratio           Float
-  last_trade_time     DateTime
-  rn                  Int
+  pnl_ratio            Float
+  last_trade_time      DateTime
+  rn                   Int
 
   @@unique([trader_id, period])
   @@map("most_profitable_wallets")
 }
 
+model MostProfitableWalletsTx {
+  id                      Int      @id @default(autoincrement())
+  trader_id               String
+  period                  Int
+  total_transaction_count Int
+  total_profit            Float
+  total_buy_usd           Float
+  total_sell_usd          Float
+  total_trades            Int
+  total_wins              Int
+  total_losses            Int
+  win_rate                Float
+  avg_profit_per_trade    Float
+  total_volume_bought     Float
+  total_volume_sold       Float
+  total_volume_traded     Float
+  pnl_ratio               Float
+  last_trade_time         DateTime
+  rn                      Int
+
+  @@unique([trader_id, period])
+  @@map("most_profitable_wallets_tx")
+}
+
 model HighActivityWalletsByVolume {
-  id              Int      @id @default(autoincrement())
-  days            Int
-  trader_id        String   
-  total_volume_usd Float
-  total_trades    Int
+  id                 Int      @id @default(autoincrement())
+  days               Int
+  trader_id          String
+  total_volume_usd   Float
+  total_trades       Int
   avg_trade_size_usd Float
-  last_trade_time DateTime
+  last_trade_time    DateTime
 
   @@unique([trader_id, days])
   @@map("high_activity_wallets_by_volume")
@@ -83,7 +107,7 @@ model HighActivityWalletsByVolume {
 model HighActivityWalletsByTransactions {
   id                     Int      @id @default(autoincrement())
   days                   Int
-  trader_id              String   
+  trader_id              String
   total_transactions     Int
   avg_daily_transactions Float
   total_volume_usd       Float
@@ -95,38 +119,56 @@ model HighActivityWalletsByTransactions {
 }
 
 model TokenHoldingTimes {
-    id                    Int      @id @default(autoincrement())
-    trader_id            String
-    shortest_hold_time   Float
-    longest_hold_time    Float
-    average_hold_time    Float
-    shortest_hold_token  String
-    shortest_hold_symbol String
-    longest_hold_token   String
-    longest_hold_symbol  String
-    last_updated        Float
+  id                   Int    @id @default(autoincrement())
+  trader_id            String
+  shortest_hold_time   Float
+  longest_hold_time    Float
+  average_hold_time    Float
+  shortest_hold_token  String
+  shortest_hold_symbol String
+  longest_hold_token   String
+  longest_hold_symbol  String
+  last_updated         Float
 
-    @@unique([trader_id])
+  @@unique([trader_id])
 }
 
 model TokenDeployerSuccess {
-    id                      Int      @id @default(autoincrement())
-    token_mint_address      String
-    symbol                  String
-    name                    String
-    decimals               Int
-    created_at             DateTime
-    init_tx                String
-    period_days            Int
-    total_supply           Float
-    current_price          Float
-    max_price_in_period    Float
-    current_market_cap     Float
-    max_market_cap         Float
-    token_creator          String
-    token_launch_time      DateTime
-    rank                   Int
+  id                  Int      @id @default(autoincrement())
+  token_mint_address  String
+  symbol              String
+  name                String
+  decimals            Int
+  created_at          DateTime
+  init_tx             String
+  period_days         Int
+  total_supply        Float
+  current_price       Float
+  max_price_in_period Float
+  current_market_cap  Float
+  max_market_cap      Float
+  token_creator       String
+  token_launch_time   DateTime
+  rank                Int
 
-    @@unique([period_days, rank])
-    @@map("token_deployer_success")
+  @@unique([token_mint_address, period_days, rank])
+  @@map("token_deployer_success")
+}
+
+model KOLLeaderboard {
+  id            Int      @id @default(autoincrement())
+  period        Int      // 1, 7, or 30 days
+  wallet_name   String
+  wallet_address String
+  win           Int
+  loss          Int
+  pnl_usd       String
+  pnl_sol       String
+  telegram      String?  // Nullable for social links
+  twitter       String?  // Nullable for social links
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("kol_leaderboard")
+  @@index([wallet_address])
 }

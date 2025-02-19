@@ -1,3 +1,4 @@
+apscheduler
 dune-client
 pyyaml
 python-dotenv
