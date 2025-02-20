@@ -172,3 +172,21 @@ model KOLLeaderboard {
   @@map("kol_leaderboard")
   @@index([wallet_address])
 }
+
+model GMGNKOL {
+  id            Int      @id @default(autoincrement())
+  period        Int      // 1, 7, or 30 days
+  wallet_name   String
+  wallet_address String
+  pnl_percentage String
+  pnl_usd       Float
+  telegram      String?  // Nullable for social links
+  twitter       String?  // Nullable for social links
+  win           Int
+  loss          Int
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("gmgn_kol")
+  @@index([wallet_address])
+}

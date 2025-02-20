@@ -15,6 +15,7 @@ from collections import defaultdict
 import socket
 import time
 from kolscan_scraper import scrape_kolscan
+from gmgn_scraper import scrape_gmgn
 
 dune_request_queue = defaultdict(dict)  # Store query requests
 QUEUE_CHECK_INTERVAL = 60  # seconds
@@ -202,8 +203,7 @@ async def scheduled_update():
         await prisma.earlytokenbuyers.delete_many()
         await prisma.tokendeployersuccess.delete_many()
         await prisma.kolwallets.delete_many()
-
-        await scrape_kolscan()
+        await prisam.gmgnkol.delete_many()
 
         queries_yml = os.path.join(os.path.dirname(__file__), '.', 'queries.yml')
         with open(queries_yml, 'r', encoding='utf-8') as file:
@@ -235,6 +235,9 @@ async def scheduled_update():
                     row['created_at'] = datetime.strptime(row['created_at'].split('.')[0], '%Y-%m-%d %H:%M:%S')
                     row['token_launch_time'] = datetime.strptime(row['token_launch_time'].split('.')[0], '%Y-%m-%d %H:%M:%S')
                     await prisma.tokendeployersuccess.create(data=row)
+
+        await scrape_kolscan()
+        await scrape_gmgn()
 
         logger.info("Scheduled data update completed successfully")
     except Exception as e:
@@ -659,6 +662,43 @@ async def get_kol_leaderboard():
 
     return jsonify({'leaderboard': leaderboard})
 
+@app.route('/api/gmgn-kol', methods=['GET'])
+async def get_gmgn_kol():
+    period = request.args.get('period', '1')
+    wallet_name = request.args.get('wallet_name')
+    wallet_address = request.args.get('wallet_address')
+    
+    try:
+        period = int(period)
+        if period not in [1, 7, 30]:
+            return jsonify({'error': 'Period must be 1, 7, or 30'}), 400
+    except ValueError:
+        return jsonify({'error': 'Invalid period value'}), 400
+
+    # Build where clause based on provided parameters
+    where_clause = {'period': period}
+    if wallet_name:
+        where_clause['wallet_name'] = wallet_name
+    if wallet_address:
+        where_clause['wallet_address'] = wallet_address
+
+    results = await prisma.gmgnkol.find_many(
+        where=where_clause,
+        order={
+            'pnl_usd': 'desc'
+        }
+    )
+    
+    leaderboard = [{
+        'wallet_name': entry.wallet_name,
+        'wallet_address': entry.wallet_address,
+        'pnl_percentage': entry.pnl_percentage,
+        'pnl_usd': entry.pnl_usd,
+        'twitter': entry.twitter
+    } for entry in results]
+
+    return jsonify({'leaderboard': leaderboard})
+
 @app.route('/api/update-data', methods=['POST'])
 async def update_data():
     try:
@@ -670,8 +710,7 @@ async def update_data():
         await prisma.earlytokenbuyers.delete_many()
         await prisma.tokendeployersuccess.delete_many()
         await prisma.kolleaderboard.delete_many()
-
-        await scrape_kolscan()
+        await prisma.gmgnkol.delete_many()
 
         queries_yml = os.path.join(os.path.dirname(__file__), '.', 'queries.yml')
         with open(queries_yml, 'r', encoding='utf-8') as file:
@@ -716,6 +755,9 @@ async def update_data():
                     await prisma.tokendeployersuccess.create(
                         data=row
                     )
+
+        await scrape_kolscan()
+        await scrape_gmgn()
 
         return {'status': 'success', 'message': 'Data updated successfully'}, 200
     except Exception as e:
