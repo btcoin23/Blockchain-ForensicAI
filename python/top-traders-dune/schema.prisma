@@ -13,11 +13,21 @@ model EarlyTokenBuyers {
   symbol             String
   token_launch_time  DateTime
   trader_id          String
-  first_buy_time     DateTime
-  total_buy_volume   Float
-  total_sell_volume  Float
-  total_pnl          Float
+  amount_usd         Float
+  block_time         DateTime
   buyer_rank         Int
+  buy_volume_1d      Float
+  sell_volume_1d     Float
+  total_pnl_1d       Float
+  total_trades_1d    Int
+  buy_volume_7d      Float
+  sell_volume_7d     Float
+  total_pnl_7d       Float
+  total_trades_7d    Int
+  buy_volume_30d     Float
+  sell_volume_30d    Float
+  total_pnl_30d      Float
+  total_trades_30d   Int
   last_updated       Float
 
   @@unique([token_mint_address, buyer_rank])

@@ -1,2 +1,6 @@
 
 .env
+
+downloaded_files
+logs
+__pycache__

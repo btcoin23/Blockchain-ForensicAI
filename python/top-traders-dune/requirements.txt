@@ -1,4 +1,5 @@
 apscheduler
+bs4
 dune-client
 pyyaml
 python-dotenv
@@ -6,3 +7,6 @@ pandas
 prisma
 quart
 quart_cors
+selenium
+seleniumbase
+webdriver_manager
