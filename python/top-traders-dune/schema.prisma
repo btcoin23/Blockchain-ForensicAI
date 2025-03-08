@@ -8,16 +8,27 @@ generator client {
 }
 
 model EarlyTokenBuyers {
-  id                  Int      @id @default(autoincrement())
-  token_mint_address  String
-  symbol              String
-  token_launch_time   DateTime
-  trader_id           String
-  token_bought_amount Float
-  amount_usd          Float
-  block_time          DateTime
-  buyer_rank          Int
-  last_updated        Float
+  id                 Int      @id @default(autoincrement())
+  token_mint_address String
+  symbol             String
+  token_launch_time  DateTime
+  trader_id          String
+  amount_usd         Float
+  block_time         DateTime
+  buyer_rank         Int
+  buy_volume_1d      Float
+  sell_volume_1d     Float
+  total_pnl_1d       Float
+  total_trades_1d    Int
+  buy_volume_7d      Float
+  sell_volume_7d     Float
+  total_pnl_7d       Float
+  total_trades_7d    Int
+  buy_volume_30d     Float
+  sell_volume_30d    Float
+  total_pnl_30d      Float
+  total_trades_30d   Int
+  last_updated       Float
 
   @@unique([token_mint_address, buyer_rank])
 }
@@ -156,37 +167,37 @@ model TokenDeployerSuccess {
 }
 
 model KOLLeaderboard {
-  id            Int      @id @default(autoincrement())
-  period        Int      // 1, 7, or 30 days
-  wallet_name   String
+  id             Int      @id @default(autoincrement())
+  period         Int // 1, 7, or 30 days
+  wallet_name    String
   wallet_address String
-  win           Int
-  loss          Int
-  pnl_usd       String
-  pnl_sol       String
-  telegram      String?  // Nullable for social links
-  twitter       String?  // Nullable for social links
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  win            Int
+  loss           Int
+  pnl_usd        String
+  pnl_sol        String
+  telegram       String? // Nullable for social links
+  twitter        String? // Nullable for social links
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  @@map("kol_leaderboard")
   @@index([wallet_address])
+  @@map("kol_leaderboard")
 }
 
 model GMGNKOL {
-  id            Int      @id @default(autoincrement())
-  period        Int      // 1, 7, or 30 days
-  wallet_name   String
+  id             Int      @id @default(autoincrement())
+  period         Int // 1, 7, or 30 days
+  wallet_name    String
   wallet_address String
   pnl_percentage String
-  pnl_usd       Float
-  telegram      String?  // Nullable for social links
-  twitter       String?  // Nullable for social links
-  win           Int
-  loss          Int
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  pnl_usd        Float
+  telegram       String? // Nullable for social links
+  twitter        String? // Nullable for social links
+  win            Int
+  loss           Int
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  @@map("gmgn_kol")
   @@index([wallet_address])
+  @@map("gmgn_kol")
 }

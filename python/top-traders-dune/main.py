@@ -89,10 +89,21 @@ def process_first_buy_wallet_row(row):
         'symbol': row['symbol'],
         'token_launch_time': datetime.strptime(row['token_launch_time'].split('.')[0], '%Y-%m-%d %H:%M:%S'),
         'trader_id': row['trader_id'],
-        'token_bought_amount': float(row['token_bought_amount']),
-        'amount_usd': float(row['amount_usd']),
         'block_time': datetime.strptime(row['block_time'].split('.')[0], '%Y-%m-%d %H:%M:%S'),
+        'amount_usd': float(row['amount_usd']),
         'buyer_rank': int(row['buyer_rank']),
+        'buy_volume_1d': float(row['buy_volume_1d']),
+        'sell_volume_1d': float(row['sell_volume_1d']),
+        'total_pnl_1d': float(row['total_pnl_1d']),
+        'total_trades_1d': float(row['total_trades_1d']),
+        'buy_volume_7d': float(row['buy_volume_7d']),
+        'sell_volume_7d': float(row['sell_volume_7d']),
+        'total_pnl_7d': float(row['total_pnl_7d']),
+        'total_trades_7d': float(row['total_trades_7d']),
+        'buy_volume_30d': float(row['buy_volume_30d']),
+        'sell_volume_30d': float(row['sell_volume_30d']),
+        'total_pnl_30d': float(row['total_pnl_30d']),
+        'total_trades_30d': float(row['total_trades_30d']),
         'last_updated': datetime.now().timestamp()
     }
 
@@ -131,7 +142,7 @@ def process_holding_times_row(row):
 
 async def store_dune_results(query_id, results, params=None):
     rows = results.result.rows
-    if query_id == 4628657:  # First buy wallets
+    if query_id == 4823796:  # First buy wallets
         for row in rows:
             processed_row = process_first_buy_wallet_row(row)
             await prisma.earlytokenbuyers.upsert(
@@ -200,10 +211,10 @@ async def scheduled_update():
         await prisma.mostprofitablewalletstx.delete_many()
         await prisma.highactivitywalletsbyvolume.delete_many()
         await prisma.highactivitywalletsbytransactions.delete_many()
-        await prisma.earlytokenbuyers.delete_many()
+        # await prisma.earlytokenbuyers.delete_many()
         await prisma.tokendeployersuccess.delete_many()
-        await prisma.kolwallets.delete_many()
-        await prisam.gmgnkol.delete_many()
+        await prisma.kolleaderboard.delete_many()
+        await prisma.gmgnkol.delete_many()
 
         queries_yml = os.path.join(os.path.dirname(__file__), '.', 'queries.yml')
         with open(queries_yml, 'r', encoding='utf-8') as file:
@@ -249,10 +260,21 @@ def format_wallet_data(wallet):
         'symbol': wallet.symbol,
         'token_launch_time': wallet.token_launch_time,
         'trader_id': wallet.trader_id,
-        'token_bought_amount': wallet.token_bought_amount,
         'amount_usd': wallet.amount_usd,
         'block_time': wallet.block_time,
-        'buyer_rank': wallet.buyer_rank
+        'buyer_rank': wallet.buyer_rank,
+        'buy_volume_1d': wallet.buy_volume_1d,
+        'sell_volume_1d': wallet.sell_volume_1d,
+        'total_pnl_1d': wallet.total_pnl_1d,
+        'total_trades_1d': wallet.total_trades_1d,
+        'buy_volume_7d': wallet.buy_volume_7d,
+        'sell_volume_7d': wallet.sell_volume_7d,
+        'total_pnl_7d': wallet.total_pnl_7d,
+        'total_trades_7d': wallet.total_trades_7d,
+        'buy_volume_30d': wallet.buy_volume_30d,
+        'sell_volume_30d': wallet.sell_volume_30d,
+        'total_pnl_30d': wallet.total_pnl_30d,
+        'total_trades_30d': wallet.total_trades_30d,
     }
 
 @app.route('/api/first-buy-wallets', methods=['GET'])
@@ -265,9 +287,6 @@ async def get_first_buy_wallets():
     existing_results = await prisma.earlytokenbuyers.find_many(
         where={
             'token_mint_address': token_mint_address
-        },
-        order={
-            'buyer_rank': 'asc'
         }
     )
 
@@ -276,7 +295,7 @@ async def get_first_buy_wallets():
             return jsonify({'wallets': [format_wallet_data(w) for w in existing_results]})
 
     queue_key = f"first_buy_{token_mint_address}"
-    request_info = dune_request_queue[4628657].get(queue_key)
+    request_info = dune_request_queue[4823796].get(queue_key)
 
     if request_info and request_info.status == "processing":
         # Wait for the processing request to complete
@@ -285,20 +304,20 @@ async def get_first_buy_wallets():
     elif not request_info:
         # Add new request to queue and process it
         params = [QueryParameter.text_type(name="token_mint_address", value=token_mint_address)]
-        dune_request_queue[4628657][queue_key] = DuneRequest(4628657, params)
-        request_info = dune_request_queue[4628657][queue_key]
+        dune_request_queue[4823796][queue_key] = DuneRequest(4823796, params)
+        request_info = dune_request_queue[4823796][queue_key]
         
         # Process the request
         request_info.status = "processing"
         try:
-            results = await run_dune_query(4628657, params)
-            await store_dune_results(4628657, results, params)
+            results = await run_dune_query(4823796, params)
+            await store_dune_results(4823796, results, params)
             request_info.status = "completed"
         except Exception as e:
             request_info.status = "failed"
             raise e
         finally:
-            del dune_request_queue[4628657][queue_key]
+            del dune_request_queue[4823796][queue_key]
 
     # Return the updated results
     final_results = await prisma.earlytokenbuyers.find_many(
@@ -707,7 +726,7 @@ async def update_data():
         await prisma.mostprofitablewalletstx.delete_many()
         await prisma.highactivitywalletsbyvolume.delete_many()
         await prisma.highactivitywalletsbytransactions.delete_many()
-        await prisma.earlytokenbuyers.delete_many()
+        # await prisma.earlytokenbuyers.delete_many()
         await prisma.tokendeployersuccess.delete_many()
         await prisma.kolleaderboard.delete_many()
         await prisma.gmgnkol.delete_many()
