@@ -104,6 +104,13 @@ def process_first_buy_wallet_row(row):
         'sell_volume_30d': float(row['sell_volume_30d']),
         'total_pnl_30d': float(row['total_pnl_30d']),
         'total_trades_30d': float(row['total_trades_30d']),
+        'shortest_hold_time': float(row['shortest_hold_time']),
+        'longest_hold_time': float(row['longest_hold_time']),
+        'average_hold_time': float(row['average_hold_time']),
+        'shortest_hold_token': row['shortest_hold_token'],
+        'shortest_hold_symbol': row['shortest_hold_symbol'],
+        'longest_hold_token': row['longest_hold_token'],
+        'longest_hold_symbol': row['longest_hold_symbol'],
         'last_updated': datetime.now().timestamp()
     }
 
@@ -142,7 +149,7 @@ def process_holding_times_row(row):
 
 async def store_dune_results(query_id, results, params=None):
     rows = results.result.rows
-    if query_id == 4823796:  # First buy wallets
+    if query_id == 4858794:  # First buy wallets
         for row in rows:
             processed_row = process_first_buy_wallet_row(row)
             await prisma.earlytokenbuyers.upsert(
@@ -275,6 +282,13 @@ def format_wallet_data(wallet):
         'sell_volume_30d': wallet.sell_volume_30d,
         'total_pnl_30d': wallet.total_pnl_30d,
         'total_trades_30d': wallet.total_trades_30d,
+        'shortest_hold_time': wallet.shortest_hold_time,
+        'longest_hold_time': wallet.longest_hold_time,
+        'average_hold_time': wallet.average_hold_time,
+        'shortest_hold_token': wallet.shortest_hold_token,
+        'shortest_hold_symbol': wallet.shortest_hold_symbol,
+        'longest_hold_token': wallet.longest_hold_token,
+        'longest_hold_symbol': wallet.longest_hold_symbol
     }
 
 @app.route('/api/first-buy-wallets', methods=['GET'])
@@ -295,7 +309,7 @@ async def get_first_buy_wallets():
             return jsonify({'wallets': [format_wallet_data(w) for w in existing_results]})
 
     queue_key = f"first_buy_{token_mint_address}"
-    request_info = dune_request_queue[4823796].get(queue_key)
+    request_info = dune_request_queue[4858794].get(queue_key)
 
     if request_info and request_info.status == "processing":
         # Wait for the processing request to complete
@@ -304,20 +318,20 @@ async def get_first_buy_wallets():
     elif not request_info:
         # Add new request to queue and process it
         params = [QueryParameter.text_type(name="token_mint_address", value=token_mint_address)]
-        dune_request_queue[4823796][queue_key] = DuneRequest(4823796, params)
-        request_info = dune_request_queue[4823796][queue_key]
+        dune_request_queue[4858794][queue_key] = DuneRequest(4858794, params)
+        request_info = dune_request_queue[4858794][queue_key]
         
         # Process the request
         request_info.status = "processing"
         try:
-            results = await run_dune_query(4823796, params)
-            await store_dune_results(4823796, results, params)
+            results = await run_dune_query(4858794, params)
+            await store_dune_results(4858794, results, params)
             request_info.status = "completed"
         except Exception as e:
             request_info.status = "failed"
             raise e
         finally:
-            del dune_request_queue[4823796][queue_key]
+            del dune_request_queue[4858794][queue_key]
 
     # Return the updated results
     final_results = await prisma.earlytokenbuyers.find_many(
@@ -429,16 +443,11 @@ async def get_profitable_wallets():
         'total_profit': w.total_profit,
         'total_buy_usd': w.total_buy_usd,
         'total_sell_usd': w.total_sell_usd,
-        'total_trades': w.total_trades,
+        'total_token_trades': w.total_token_trades,
         'total_wins': w.total_wins,
         'total_losses': w.total_losses,
         'win_rate': w.win_rate,
-        'avg_profit_per_trade': w.avg_profit_per_trade,
-        'total_volume_bought': w.total_volume_bought,
-        'total_volume_sold': w.total_volume_sold,
-        'total_volume_traded': w.total_volume_traded,
         'pnl_ratio': w.pnl_ratio,
-        'last_trade_time': w.last_trade_time
     } for w in wallets]
     return jsonify({'wallets': wallets_dict})
 
