@@ -27,6 +27,24 @@ class DuneRequest:
         self.timestamp = time.time()
         self.status = "queued"  # queued, processing, completed, failed
 
+def handle_asyncio_exception(loop, context):
+    # Don't log connection reset errors
+    exception = context.get('exception')
+    if isinstance(exception, ConnectionResetError) and exception.winerror == 10054:
+        return
+    
+    # Log other exceptions as usual
+    msg = context.get('message')
+    if exception:
+        logging.error(f"Unhandled exception: {msg}", exc_info=exception)
+    else:
+        logging.error(f"Unhandled exception: {msg}")
+
+# Set the exception handler when creating the event loop
+loop = asyncio.new_event_loop()
+loop.set_exception_handler(handle_asyncio_exception)
+asyncio.set_event_loop(loop)
+
 app = Quart(__name__)
 app = cors(app)
 prisma = Prisma()
@@ -84,33 +102,45 @@ async def process_dune_queue():
         await asyncio.sleep(QUEUE_CHECK_INTERVAL)
 
 def process_first_buy_wallet_row(row):
+    # Helper function to safely convert to float
+    def safe_float(value):
+        if value is None:
+            return 0.0
+        return float(value)
+    
+    # Helper function to safely parse datetime
+    def safe_datetime(value):
+        if value is None:
+            return datetime.now()
+        return datetime.strptime(value.split('.')[0], '%Y-%m-%d %H:%M:%S')
+    
     return {
         'token_mint_address': row['token_mint_address'],
         'symbol': row['symbol'],
-        'token_launch_time': datetime.strptime(row['token_launch_time'].split('.')[0], '%Y-%m-%d %H:%M:%S'),
+        'token_launch_time': safe_datetime(row['token_launch_time']),
         'trader_id': row['trader_id'],
-        'block_time': datetime.strptime(row['block_time'].split('.')[0], '%Y-%m-%d %H:%M:%S'),
-        'amount_usd': float(row['amount_usd']),
-        'buyer_rank': int(row['buyer_rank']),
-        'buy_volume_1d': float(row['buy_volume_1d']),
-        'sell_volume_1d': float(row['sell_volume_1d']),
-        'total_pnl_1d': float(row['total_pnl_1d']),
-        'total_trades_1d': float(row['total_trades_1d']),
-        'buy_volume_7d': float(row['buy_volume_7d']),
-        'sell_volume_7d': float(row['sell_volume_7d']),
-        'total_pnl_7d': float(row['total_pnl_7d']),
-        'total_trades_7d': float(row['total_trades_7d']),
-        'buy_volume_30d': float(row['buy_volume_30d']),
-        'sell_volume_30d': float(row['sell_volume_30d']),
-        'total_pnl_30d': float(row['total_pnl_30d']),
-        'total_trades_30d': float(row['total_trades_30d']),
-        'shortest_hold_time': float(row['shortest_hold_time']),
-        'longest_hold_time': float(row['longest_hold_time']),
-        'average_hold_time': float(row['average_hold_time']),
+        'block_time': safe_datetime(row['block_time']),
+        'amount_usd': safe_float(row['amount_usd']),
+        'buyer_rank': int(row['buyer_rank']) if row['buyer_rank'] is not None else 0,
+        'buy_volume_1d': safe_float(row['buy_volume_1d']),
+        'sell_volume_1d': safe_float(row['sell_volume_1d']),
+        'total_pnl_1d': safe_float(row['total_pnl_1d']),
+        'total_trades_1d': safe_float(row['total_trades_1d']),
+        'buy_volume_7d': safe_float(row['buy_volume_7d']),
+        'sell_volume_7d': safe_float(row['sell_volume_7d']),
+        'total_pnl_7d': safe_float(row['total_pnl_7d']),
+        'total_trades_7d': safe_float(row['total_trades_7d']),
+        'buy_volume_30d': safe_float(row['buy_volume_30d']),
+        'sell_volume_30d': safe_float(row['sell_volume_30d']),
+        'total_pnl_30d': safe_float(row['total_pnl_30d']),
+        'total_trades_30d': safe_float(row['total_trades_30d']),
+        'shortest_hold_time': safe_float(row['shortest_hold_time']),
+        'longest_hold_time': safe_float(row['longest_hold_time']),
+        'average_hold_time': safe_float(row['average_hold_time']),
         'shortest_hold_token': row['shortest_hold_token'],
-        'shortest_hold_symbol': row['shortest_hold_symbol'],
+        'shortest_hold_symbol': row.get('shortest_hold_symbol', '') or '',
         'longest_hold_token': row['longest_hold_token'],
-        'longest_hold_symbol': row['longest_hold_symbol'],
+        'longest_hold_symbol': row.get('longest_hold_symbol', '') or '',
         'last_updated': datetime.now().timestamp()
     }
 
@@ -126,11 +156,7 @@ def process_token_profitable_row(row, token_mint_address):
         'total_losses': int(row['total_losses']),
         'win_rate': float(row['win_rate']),
         'avg_profit_per_trade': float(row['avg_profit_per_trade']),
-        'total_volume_bought': float(row['total_volume_bought']),
-        'total_volume_sold': float(row['total_volume_sold']),
-        'total_volume_traded': float(row['total_volume_traded']),
         'pnl_ratio': float(row['pnl_ratio']),
-        'last_trade_time': datetime.strptime(row['last_trade_time'].split('.')[0], '%Y-%m-%d %H:%M:%S'),
         'last_updated': datetime.now().timestamp()
     }
 
@@ -141,9 +167,9 @@ def process_holding_times_row(row):
         'longest_hold_time': float(row['longest_hold_time']),
         'average_hold_time': float(row['average_hold_time']),
         'shortest_hold_token': row['shortest_hold_token'],
-        'shortest_hold_symbol': row['shortest_hold_symbol'],
+        'shortest_hold_symbol': row.get('shortest_hold_symbol', '') or '',
         'longest_hold_token': row['longest_hold_token'],
-        'longest_hold_symbol': row['longest_hold_symbol'],
+        'longest_hold_symbol': row.get('longest_hold_symbol', '') or '',
         'last_updated': datetime.now().timestamp()
     }
 
@@ -196,15 +222,24 @@ async def store_dune_results(query_id, results, params=None):
 async def run_dune_query(query_id, params=None, max_retries=3):
     for attempt in range(max_retries):
         try:
-            async with asyncio.timeout(240):  # 4 minutes timeout
-                if params:
-                    query = QueryBase(
-                        name=f"Query {query_id}",
-                        query_id=query_id,
-                        params=params
-                    )
-                    return await asyncio.to_thread(dune.run_query, query)
-                return await asyncio.to_thread(dune.get_latest_result, query_id, 24)
+            # Get the current event loop
+            loop = asyncio.get_event_loop()
+            
+            # Use run_in_executor instead of to_thread
+            if params:
+                query = QueryBase(
+                    name=f"Query {query_id}",
+                    query_id=query_id,
+                    params=params
+                )
+                return await asyncio.wait_for(
+                    loop.run_in_executor(None, lambda: dune.run_query(query)),
+                    timeout=600
+                )
+            return await asyncio.wait_for(
+                loop.run_in_executor(None, lambda: dune.get_latest_result(query_id, 24)),
+                timeout=600
+            )
         except Exception as e:
             if attempt == max_retries - 1:
                 raise
@@ -357,11 +392,7 @@ def format_profitable_wallet(wallet):
         'total_losses': wallet.total_losses,
         'win_rate': wallet.win_rate,
         'avg_profit_per_trade': wallet.avg_profit_per_trade,
-        'total_volume_bought': wallet.total_volume_bought,
-        'total_volume_sold': wallet.total_volume_sold,
-        'total_volume_traded': wallet.total_volume_traded,
         'pnl_ratio': wallet.pnl_ratio,
-        'last_trade_time': wallet.last_trade_time
     }
 
 @app.route('/api/token-profitable-wallets', methods=['GET'])
@@ -443,7 +474,7 @@ async def get_profitable_wallets():
         'total_profit': w.total_profit,
         'total_buy_usd': w.total_buy_usd,
         'total_sell_usd': w.total_sell_usd,
-        'total_token_trades': w.total_token_trades,
+        'total_trades': w.total_trades,
         'total_wins': w.total_wins,
         'total_losses': w.total_losses,
         'win_rate': w.win_rate,
@@ -797,9 +828,9 @@ if __name__ == '__main__':
     
     config = Config()
     config.bind = ["0.0.0.0:5000"]
-    config.keep_alive_timeout = 300  # 5 minutes
+    config.keep_alive_timeout = 600
     config.worker_class = "asyncio"
-    config.graceful_timeout = 300
-    config.timeout = 300
+    config.graceful_timeout = 600
+    config.timeout = 600
 
     asyncio.run(serve(app, config))

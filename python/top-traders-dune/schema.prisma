@@ -32,9 +32,9 @@ model EarlyTokenBuyers {
   longest_hold_time    Float
   average_hold_time    Float
   shortest_hold_token  String
-  shortest_hold_symbol String
+  shortest_hold_symbol String?
   longest_hold_token   String
-  longest_hold_symbol  String
+  longest_hold_symbol  String?
   last_updated         Float
 
   @@unique([token_mint_address, buyer_rank])
@@ -52,28 +52,24 @@ model TokenProfitableWallets {
   total_losses         Int
   win_rate             Float
   avg_profit_per_trade Float
-  total_volume_bought  Float
-  total_volume_sold    Float
-  total_volume_traded  Float
   pnl_ratio            Float
-  last_trade_time      DateTime
   last_updated         Float
 
   @@unique([token_mint_address, trader_id])
 }
 
 model MostProfitableWallets {
-  id                 Int    @id @default(autoincrement())
-  trader_id          String
-  period             Int
-  total_profit       Float
-  total_buy_usd      Float
-  total_sell_usd     Float
-  total_token_trades Int
-  total_wins         Int
-  total_losses       Int
-  win_rate           Float
-  pnl_ratio          Float
+  id             Int    @id @default(autoincrement())
+  trader_id      String
+  period         Int
+  total_profit   Float
+  total_buy_usd  Float
+  total_sell_usd Float
+  total_trades   Int
+  total_wins     Int
+  total_losses   Int
+  win_rate       Float
+  pnl_ratio      Float
 
   @@unique([trader_id, period])
   @@map("most_profitable_wallets")
@@ -131,15 +127,15 @@ model HighActivityWalletsByTransactions {
 }
 
 model TokenHoldingTimes {
-  id                   Int    @id @default(autoincrement())
+  id                   Int     @id @default(autoincrement())
   trader_id            String
   shortest_hold_time   Float
   longest_hold_time    Float
   average_hold_time    Float
   shortest_hold_token  String
-  shortest_hold_symbol String
+  shortest_hold_symbol String?
   longest_hold_token   String
-  longest_hold_symbol  String
+  longest_hold_symbol  String?
   last_updated         Float
 
   @@unique([trader_id])

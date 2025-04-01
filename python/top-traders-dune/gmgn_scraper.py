@@ -4,32 +4,24 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from bs4 import BeautifulSoup
-import pandas as pd
 import os
 import time
 import logging
-import json
 from datetime import datetime
 from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
-
 from seleniumbase import Driver
 
 def setup_driver():
     options = webdriver.ChromeOptions()
-
-    # options.add_argument('--headless')
     options.add_argument('--no-sandbox')
     options.add_argument('--disable-dev-shm-usage')
     options.add_argument('--disable-gpu')
     options.add_argument('--window-size=1920,1080')
     options.add_argument('--disable-blink-features=AutomationControlled')
-
     options.page_load_strategy = 'eager'
-
-    service = Service(ChromeDriverManager().install())
-    driver = Driver(uc=True)
     
+    driver = Driver(uc=True)
     return driver
 
 def setup_logging():
@@ -48,20 +40,16 @@ def setup_logging():
     )
     return logging.getLogger(__name__)
 
-
-def wait_for_element(driver, selector, by=By.CSS_SELECTOR, timeout=10):
+def wait_for_element(driver, selector, by=By.CSS_SELECTOR, timeout=5):
     return WebDriverWait(driver, timeout).until(
         EC.presence_of_element_located((by, selector))
     )
 
 def convert_to_number(value):
-    # Remove any leading '+' sign
     value = value.replace('+', '')
     
-    # Handle K (thousands)
     if 'K' in value:
         return float(value.replace('K', '')) * 1000
-    # Handle M (millions) if needed
     elif 'M' in value:
         return float(value.replace('M', '')) * 1000000
     else:
@@ -70,30 +58,26 @@ def convert_to_number(value):
 def click_time_filter(driver, period, logger):
     logger.info(f"Attempting to click {period} filter button")
     
-    # Wait for page load
-    time.sleep(10)
+    # Reduced wait time
+    time.sleep(3)
     
-    # CSS selectors for PnL buttons
-    button_selector = "div.TableMultipleSort_item__QC9gV"
+    button_selector = "div.TableMultipleSort_item__r8sgn"
     pnl_text = {'Daily': '1D PnL', 'Weekly': '7D PnL', 'Monthly': '30D PnL'}
     
     def find_and_click_button():
-        WebDriverWait(driver, 20).until(
+        WebDriverWait(driver, 10).until(
             EC.presence_of_all_elements_located((By.CSS_SELECTOR, button_selector))
         )
         
-        # Find all buttons again to avoid stale elements
         buttons = driver.find_elements(By.CSS_SELECTOR, button_selector)
         print(f"Found {len(buttons)} buttons")
         
-        # Find the button with matching text
         for button in buttons:
             try:
                 if pnl_text[period] in button.text:
                     initial_data = driver.page_source
-
                     button.click()
-                    time.sleep(5) 
+                    time.sleep(2)  # Reduced wait time
                     button.click()
                     if driver.page_source != initial_data:
                         logger.info(f"Successfully clicked and verified {period} PnL button")
@@ -108,22 +92,20 @@ def click_time_filter(driver, period, logger):
             if find_and_click_button():
                 return
             logger.warning(f"Button click attempt {attempt + 1} failed, retrying...")
-            time.sleep(2)
+            time.sleep(1)  # Reduced wait time
         except Exception as e:
             logger.warning(f"Attempt {attempt + 1} failed: {str(e)}")
-            time.sleep(2)
+            time.sleep(1)  # Reduced wait time
     
     raise Exception(f"Failed to click {period} button after {max_attempts} attempts")
-
 
 def click_svg_icon(driver, logger):
     logger.info("Attempting to click SVG icon")
     
-    # Single, specific selector targeting the SVG within the chakra-portal structure
     svg_selector = "//div[contains(@class, 'chakra-portal')]//div[contains(@class, 'css-12rtj2z')]//div[contains(@class, 'css-pt4g3d')]"
     
     try:
-        svg_element = WebDriverWait(driver, 10).until(
+        svg_element = WebDriverWait(driver, 5).until(  # Reduced timeout
             EC.element_to_be_clickable((By.XPATH, svg_selector))
         )
         driver.execute_script("arguments[0].click();", svg_element)
@@ -134,29 +116,22 @@ def click_svg_icon(driver, logger):
         logger.error(f"Failed to click SVG icon: {str(e)}")
         return False
 
-
 def extract_data(driver, period, logger):
-    # Add wait for table to load
-    time.sleep(15)  # Give more time for data to populate
+    # Reduced wait time but still giving enough time for data to load
+    time.sleep(8)  
 
     period_days = {'Daily': 1, 'Weekly': 7, 'Monthly': 30}
     period_index = list(period_days.keys()).index(period)
 
-    # Wait for table rows to be present
     try:
-        WebDriverWait(driver, 20).until(
+        WebDriverWait(driver, 10).until(  # Reduced timeout
             EC.presence_of_all_elements_located((By.CSS_SELECTOR, 'tr.g-table-row.g-table-row-level-0'))
         )
     except Exception as e:
         logger.warning(f"Timeout waiting for table rows: {str(e)}")
     
     soup = BeautifulSoup(driver.page_source, 'html.parser')
-
     users = soup.select('tr.g-table-row.g-table-row-level-0')
-
-    # with open('gmgn_users.html', 'w', encoding='utf-8') as f:
-    #     for user in users:
-    #         f.write(str(user) + '\n')
     data = []
 
     for user in users:
@@ -206,19 +181,44 @@ def extract_data(driver, period, logger):
     logger.info(f"Successfully extracted data for {len(data)} users")
     return data
 
-
-async def save_to_database(data):
+async def save_to_database(data, logger):
+    logger.info(f"Saving {len(data)} records to database")
     db = Prisma()
     await db.connect()
+    
+    success_count = 0
+    error_count = 0
 
     for record in data:
         try:
-            await db.gmgnkol.upsert(
+            # Find existing record by wallet_address and period
+            existing_record = await db.gmgnkol.find_first(
                 where={
-                    'id': record.get('id', 0)
-                },
-                data={
-                    'create': {
+                    'wallet_address': record['wallet_address'],
+                    'period': record['period']
+                }
+            )
+            
+            if existing_record:
+                # Update existing record
+                await db.gmgnkol.update(
+                    where={
+                        'id': existing_record.id
+                    },
+                    data={
+                        'wallet_name': record['wallet_name'],
+                        'pnl_percentage': record['pnl_percentage'],
+                        'pnl_usd': float(record['pnl_usd']),
+                        'telegram': record['telegram'],
+                        'twitter': record['twitter'],
+                        'win': int(record['win']),
+                        'loss': int(record['loss'])
+                    }
+                )
+            else:
+                # Create new record
+                await db.gmgnkol.create(
+                    data={
                         'period': record['period'],
                         'wallet_name': record['wallet_name'],
                         'wallet_address': record['wallet_address'],
@@ -228,31 +228,17 @@ async def save_to_database(data):
                         'twitter': record['twitter'],
                         'win': int(record['win']),
                         'loss': int(record['loss'])
-                    },
-                    'update': {
-                        'period': record['period'],
-                        'wallet_name': record['wallet_name'],
-                        'pnl_percentage': record['pnl_percentage'],
-                        'pnl_usd': float(record['pnl_usd']),
-                        'telegram': record['telegram'],
-                        'twitter': record['twitter'],
-                        'win': int(record['win']),
-                        'loss': int(record['loss'])
                     }
-                }
-            )
+                )
+            
+            success_count += 1
         except Exception as e:
-            print(f"Error storing record for {record['wallet_address']}: {str(e)}")
+            logger.error(f"Error storing record for {record['wallet_address']}: {str(e)}")
+            error_count += 1
 
     await db.disconnect()
-    print(f"Saved {len(data)} records to database")
-
-
-# def save_to_csv(data):
-#     df = pd.DataFrame(data)
-#     filename = f'kol_gmgn.csv'
-#     df.to_csv(filename, index=False)
-#     print(f"Saved {filename} with {len(data)} records")
+    logger.info(f"Database operation completed: {success_count} records saved, {error_count} errors")
+    return success_count, error_count
 
 async def scrape_gmgn():
     logger = setup_logging()
@@ -267,25 +253,32 @@ async def scrape_gmgn():
         logger.info("Navigating to GMGN leaderboard")
         driver.get("https://gmgn.ai/trade?chain=sol&tab=renowned")
         logger.info("Page loaded, waiting for initial render")
-        time.sleep(5) 
+        time.sleep(3)  # Reduced wait time
         click_svg_icon(driver, logger)
-        time.sleep(2) 
+        time.sleep(1)  # Reduced wait time
 
         for period in ['Daily', 'Weekly', 'Monthly']:
             try:
                 logger.info(f"=== Starting {period} period scraping ===")
                 click_time_filter(driver, period, logger)
                 period_data = extract_data(driver, period, logger)
-                all_data.extend(period_data)  # Add period data to all_data
+                all_data.extend(period_data)
+                logger.info(f"Collected {len(period_data)} records for {period} period")
             except Exception as e:
                 logger.error(f"Failed to complete {period} scraping: {str(e)}", exc_info=True)
-
-        await save_to_database(all_data)  # Save combined data from all periods
     
     except Exception as e:
         logger.error(f"Critical scraper error: {str(e)}", exc_info=True)
     
-    finally:      
+    finally:
+        # Always save data before exiting, even if there was an error
+        if all_data:
+            logger.info(f"Saving all collected data ({len(all_data)} records) before exiting")
+            success, errors = await save_to_database(all_data, logger)
+            logger.info(f"Final database save: {success} successful, {errors} failed")
+        else:
+            logger.warning("No data collected to save")
+            
         driver.quit()
         logger.info("Scraping process completed, browser closed")
 

@@ -116,7 +116,7 @@ def extract_data(driver, period, logger):
 
     for user in users:
         try:
-            account_link = user.find('a', style="display:flex;align-items:center;gap:10px;white-space:nowrap")
+            account_link = user.find('a', style="display:flex;align-items:center;gap:10px")
             wallet_name = account_link.find('h1').text.strip()
             wallet_address = account_link['href'].split('/account/')[1]
 
